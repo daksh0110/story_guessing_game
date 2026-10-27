@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Fredoka", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fredoka", ui-sans-serif, system-ui, sans-serif;
+
+  --color-paper: #fff8ec;
+  --color-ink: #1f2430;
+  --color-muted: #6b7280;
+  --color-coral: #ff6b4a;
+  --color-coral-dark: #e0502f;
+  --color-teal: #2ec4b6;
+  --color-teal-dark: #1f9d91;
+  --color-sun: #ffd166;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+}
