@@ -77,6 +77,7 @@ export default function App() {
     socket.on(
       "room.player_joined",
       (data: { player: PlayerData; room_code: string }) => {
+        console.log(data);
         if (data?.player) {
           dispatch(playerJoined(data.player));
         }

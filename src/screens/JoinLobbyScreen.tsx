@@ -5,7 +5,7 @@ import { useJoinRoomMutation } from "@/services/api/roomApi";
 import { syncRoomFromBackend } from "@/services/roomService";
 import { useAppDispatch } from "@/store";
 import { setRoom } from "@/store/slices/gameSlice";
-import { getSocketId } from "@/utils/socket";
+import { getSocketId, joinSocketRoom } from "@/utils/socket";
 import {
   isValidRoomCode,
   isValidUsername,
@@ -64,6 +64,7 @@ export default function JoinLobbyScreen({
       if (response.success && response.data) {
         syncRoomFromBackend(response.data, response.data.current_player);
         dispatch(setRoom(response.data));
+        joinSocketRoom(response.data.code, response.data.current_player?.id);
         navigateTo(`/lobby/${response.data.code}`);
       } else {
         setError(response.message || "Failed to join room.");

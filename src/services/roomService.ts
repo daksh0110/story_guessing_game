@@ -8,7 +8,6 @@ import {
 import type { Stroke } from "@/types/drawing";
 import type { Player, Room, RoomSettings, Team } from "@/types/game";
 import { getStartBlocker } from "@/utils/lobbyRules";
-import { readStoredJson, writeStoredJson } from "@/utils/storage";
 import { normalizeRoomCode } from "@/utils/validation";
 import { getCurrentPlayerId, setCurrentPlayerId } from "@/services/identity";
 import { clearDrawingLog } from "@/services/drawingChannel";
@@ -17,12 +16,11 @@ import type { RoomData, PlayerData } from "@/types/api";
 export { getCurrentPlayerId, setCurrentPlayerId };
 
 /**
- * Frontend stand-in for the game server. Rooms live in localStorage, so
- * lobbies sync across browser tabs on the same machine. Components only use
- * these exports, so swapping in Socket.IO later means changing this file alone.
+ * Pure in-memory room store.
+ * Nothing is stored in localStorage or sessionStorage.
+ * State updates in real time via Socket.IO events and HTTP calls.
  */
 
-const ROOMS_STORAGE_KEY = "storyframes:rooms";
 const ROOM_CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
 type RoomMap = Record<string, Room>;
@@ -31,24 +29,18 @@ type Subscriber = () => void;
 export class RoomServiceError extends Error {}
 
 const subscribers = new Set<Subscriber>();
+let inMemoryRooms: RoomMap = {};
 
 function notifySubscribers() {
   subscribers.forEach((callback) => callback());
 }
 
-// Other tabs write to localStorage; this keeps every open lobby up to date.
-window.addEventListener("storage", (event) => {
-  if (event.key === ROOMS_STORAGE_KEY) {
-    notifySubscribers();
-  }
-});
-
 function loadRooms(): RoomMap {
-  return readStoredJson<RoomMap>(ROOMS_STORAGE_KEY, {});
+  return inMemoryRooms;
 }
 
 function saveRooms(rooms: RoomMap) {
-  writeStoredJson(ROOMS_STORAGE_KEY, rooms);
+  inMemoryRooms = rooms;
   notifySubscribers();
 }
 
@@ -202,8 +194,8 @@ export function syncRoomFromBackend(
     roomData.configuration?.difficulty?.toLowerCase() === "easy"
       ? "Easy"
       : roomData.configuration?.difficulty?.toLowerCase() === "hard"
-      ? "Hard"
-      : "Medium";
+        ? "Hard"
+        : "Medium";
 
   const players: Player[] = (roomData.players || []).map((p, idx) => {
     const pId = String(p.id);
@@ -233,18 +225,8 @@ export function syncRoomFromBackend(
     createdAt: existingRoom?.createdAt ?? Date.now(),
   };
 
-  const hasChanged =
-    !existingRoom ||
-    existingRoom.players.length !== players.length ||
-    JSON.stringify(existingRoom.players.map((p) => p.id)) !==
-      JSON.stringify(players.map((p) => p.id));
-
-  if (hasChanged) {
-    rooms[normalized] = room;
-    saveRooms(rooms);
-  } else {
-    rooms[normalized] = room;
-  }
+  rooms[normalized] = room;
+  saveRooms(rooms);
 
   if (currentPlayer) {
     setCurrentPlayerId(currentPlayer.id);
@@ -253,7 +235,9 @@ export function syncRoomFromBackend(
   return room;
 }
 
-export async function refreshRoomFromBackend(code: string): Promise<Room | null> {
+export async function refreshRoomFromBackend(
+  code: string,
+): Promise<Room | null> {
   const normalized = normalizeRoomCode(code);
   try {
     const backendUrl =
@@ -339,7 +323,10 @@ export async function startGame(code: string): Promise<void> {
   });
 }
 
-export async function submitDrawing(code: string, strokes: Stroke[]): Promise<void> {
+export async function submitDrawing(
+  code: string,
+  strokes: Stroke[],
+): Promise<void> {
   mutateRoom(code, (room) => {
     if (room.status !== "drawing" || room.roundEndsAt === null) {
       throw new RoomServiceError("The drawing phase is over.");
@@ -376,7 +363,9 @@ export async function finishRound(code: string): Promise<void> {
     const artistIds = room.players
       .filter((p) => p.team === "artists")
       .map((p) => p.id);
-    const allSubmitted = artistIds.every((id) => room.drawings[id] !== undefined);
+    const allSubmitted = artistIds.every(
+      (id) => room.drawings[id] !== undefined,
+    );
     const graceOver = Date.now() >= room.roundEndsAt + ROUND_GRACE_MS;
 
     if (!allSubmitted && !graceOver) {

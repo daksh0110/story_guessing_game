@@ -12,6 +12,7 @@ import {
 import { getStartBlocker } from "@/utils/lobbyRules";
 import { getErrorMessage } from "@/utils/errors";
 import { isValidUsername } from "@/utils/validation";
+import { socket, joinSocketRoom } from "@/utils/socket";
 import type { Team } from "@/types/game";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -33,6 +34,22 @@ export default function LobbyScreen({ code }: LobbyScreenProps) {
   const playerId = getCurrentPlayerId();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Automatically join this client's socket to the room channel for live updates
+  useEffect(() => {
+    if (!code) return;
+    const numId = playerId && !isNaN(Number(playerId)) ? Number(playerId) : undefined;
+    joinSocketRoom(code, numId);
+
+    const handleConnect = () => {
+      joinSocketRoom(code, numId);
+    };
+
+    socket.on("connect", handleConnect);
+    return () => {
+      socket.off("connect", handleConnect);
+    };
+  }, [code, playerId]);
 
   // Everyone moves into the game once the host starts it.
   useEffect(() => {

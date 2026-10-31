@@ -19,15 +19,28 @@ export function joinSocketRoom(
   playerId?: number,
 ): Promise<{ success: boolean; message?: string }> {
   return new Promise((resolve) => {
-    if (!socket.connected) {
-      resolve({ success: false, message: "Socket not connected" });
-      return;
-    }
-    socket.emit("room.join", { code, player_id: playerId }, (response: unknown) => {
-      resolve(
-        (response as { success: boolean; message?: string }) ?? { success: true },
+    const doEmit = () => {
+      socket.emit(
+        "room.join",
+        { code: code.trim().toUpperCase(), player_id: playerId },
+        (response: unknown) => {
+          resolve(
+            (response as { success: boolean; message?: string }) ?? {
+              success: true,
+            },
+          );
+        },
       );
-    });
+    };
+
+    if (socket.connected) {
+      doEmit();
+    } else {
+      socket.connect();
+      socket.once("connect", () => {
+        doEmit();
+      });
+    }
   });
 }
 
